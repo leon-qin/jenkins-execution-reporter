@@ -257,11 +257,11 @@ def exit_if_settings_file_not_exists(settings_file):
 # Check and ensure all input arguments are valid
 def initialize(args):
     exit_if_input_file_not_exists(args.input)
-    exit_if_settings_file_not_exists(args.settings)
-        # Read settings.json file
+    
     pathToSettings = args.settings
     if pathToSettings is None:
         pathToSettings = "settings.json"
+    exit_if_settings_file_not_exists(pathToSettings)
     global app_settings
     app_settings = read_settings(pathToSettings)
     exit_if_tag_not_defined(args.tags.split(",") if args.tags is not None else None)
