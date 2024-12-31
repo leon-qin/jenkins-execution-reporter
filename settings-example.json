@@ -1,0 +1,38 @@
+{
+    "tags": {
+        "qa": {
+            "matchField": "Computer",
+            "matchPattern": ".*Test.*"
+        },
+        "non-qa": {
+            "matchField": "Computer",
+            "matchPattern": "^(?!.*Test).*"
+        },
+        "internal-macos": {
+            "matchField": "Computer",
+            "matchPattern": "^macos.*"
+        },
+        "aws-windows": {
+            "matchField": "Computer",
+            "matchPattern": ".*ec2.*windows.*"
+        },
+        "aws-windows-c52xlarge": {
+            "matchField": "Computer",
+            "matchPattern": ".*ec2.*windows.*"
+        },
+        "aws-linux": {
+            "matchField": "Computer",
+            "matchPattern": ".*ec2.*linux.*"
+        },
+        "aws-linux-c52xlarge": {
+            "matchField": "Computer",
+            "matchPattern": ".*ec2.*linux.*"
+        }
+    },
+    "costs": {
+        "aws-windows-c52xlarge": 0.708,
+        "aws-windows-c7i2xlarge": 0.725,
+        "aws-linux-c52xlarge": 0.34,
+        "aws-linux-c7i2xlarge": 0.357
+    }
+}
