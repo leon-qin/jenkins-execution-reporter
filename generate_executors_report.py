@@ -269,10 +269,10 @@ def initialize(args):
 # Run the main function
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate Jenkins Executors Report")
-    parser.add_argument("--settings", type=str, help="Path to the settings.json file")
-    parser.add_argument("--tags", type=str, help="Comma-separated list of tags to filter logs")
-    parser.add_argument("--range", type=str, help="Time range to filter logs, format: start:end")
-    parser.add_argument("--input", type=str, required=True, help="Path to the input CSV file")
+    parser.add_argument("-s", "--settings", type=str, help="Path to the settings.json file")
+    parser.add_argument("-t", "--tags", type=str, help="Comma-separated list of tags to filter logs")
+    parser.add_argument("-r", "--range", type=str, help="Time range to filter logs, format: start:end")
+    parser.add_argument("-i", "--input", type=str, required=True, help="Path to the input CSV file")
     args = parser.parse_args()
     initialize(args)
 
