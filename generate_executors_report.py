@@ -107,6 +107,14 @@ def format_duration(duration):
 def format_cost(cost):
     return str(round(cost, 2)) + " USD"
 
+# Analyze the cost by tag (app_settings["costs"]), store the results in a dictionary costs, returns a sorted list of tags by cost
+def analyze_by_cost_tag(logs):
+    costs = {}
+    for tag in app_settings["costs"]:
+        costs[tag] = calculate_cost(logs, tag)
+    sorted_tags_by_cost = sorted(costs, key=costs.get, reverse=True)
+    return { "sorted_tags": sorted_tags_by_cost, "costs": costs }
+
 # Analyze total duration, cost and build times by parent, store the results in variables parent_duration, parent_cost, parent_build_times, returns an object which contains 3 sorted lists of parent names by duration, cost and build times
 def analyze_by_parent(logs):
 
@@ -266,6 +274,47 @@ def initialize(args):
     app_settings = read_settings(pathToSettings)
     exit_if_tag_not_defined(args.tags.split(",") if args.tags is not None else None)
 
+# Output the execution summary to the console in markdown format
+def output_execution_summary(execution_summary):
+    print("# Jenkins Execution Report\r\n")
+    print("## Input\r\n")
+    print("- File: " + execution_summary["input"]["file"])
+    print("- Filter by time range: " + format_time_range(execution_summary["input"]["time_range"]) + " (" + str(execution_summary["input"]["logs_after_filter_by_time"]) + "/" + str(execution_summary["input"]["total_logs"]) + " logs)")
+    print("- Filter by tags: " + str(execution_summary["input"]["tags"]) + " (" + str(execution_summary["input"]["logs_to_analyze"]) + "/" + str(execution_summary["input"]["logs_after_filter_by_time"]) + " logs)")
+    print("\r\n")
+
+    if "result" not in execution_summary:
+        print("\r\n**No logs to analyze**")
+        return
+    
+    print("## Analysis\r\n")
+    print("### Overall\r\n")
+    print("- Earliest Log Time: " + datetime.datetime.fromtimestamp(execution_summary["result"]["earliest_log_time"] / 1000).strftime("%Y-%m-%d %H:%M:%S"))
+    print("- Latest Log Time: " + datetime.datetime.fromtimestamp(execution_summary["result"]["latest_log_time"] / 1000).strftime("%Y-%m-%d %H:%M:%S"))
+    print("- Total Duration: " + format_duration(execution_summary["result"]["totalDuration"]))
+    print("- Total Cost: " + format_cost(execution_summary["result"]["totalCost"]))
+    print("\r\n")
+
+    print("### Analysis by Build Duration\r\n")
+    # print the sorted parent names by duration, each name starts with a new row, the parent name is the key, the total duration is the value
+    for parent_name in execution_summary["result"]["analysis_result_by_parent"]["by_duration"]["sorted_names"]:
+        print("- " + parent_name + ": " 
+              + format_duration(execution_summary["result"]["analysis_result_by_parent"]["by_duration"]["parents"][parent_name]) + " (" + str(execution_summary["result"]["analysis_result_by_parent"]["by_build_times"]["parents"][parent_name]) + " builds)")
+
+    print("\r\n")
+    print("### Analysis by Build Cost\r\n")
+    # print the sorted parent names by cost, each name starts with a new row, the parent name is the key, the total cost is the value
+    for parent_name in execution_summary["result"]["analysis_result_by_parent"]["by_cost"]["sorted_names"]:
+        # print the parent name and the total cost of the parent, if it costs > 0 USD
+        if execution_summary["result"]["analysis_result_by_parent"]["by_cost"]["parents"][parent_name] > 1:
+            print("- " + parent_name + ": " + format_cost(execution_summary["result"]["analysis_result_by_parent"]["by_cost"]["parents"][parent_name]) + " (" + str(execution_summary["result"]["analysis_result_by_parent"]["by_build_times"]["parents"][parent_name]) + " builds)")
+
+    print("\r\n")
+    print("## Analysis by Cost Tags\r\n")
+    # print the sorted tags by cost, each tag starts with a new row, the tag is the key, the total cost is the value
+    for tag in execution_summary["result"]["analysis_result_by_cost_tag"]["sorted_tags"]:
+        print("- " + tag + ": " + format_cost(execution_summary["result"]["analysis_result_by_cost_tag"]["costs"][tag]))
+
 # Run the main function
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate Jenkins Executors Report")
@@ -276,40 +325,32 @@ if __name__ == "__main__":
     args = parser.parse_args()
     initialize(args)
 
-    print("# Jenkins Execution Report\r\n")
-    print("## Input\r\n")
-    print("- File: " + args.input)
+    execution_summary = {}
+    execution_summary["report_time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    execution_summary["input"] = {}
+    execution_summary["input"]["file"] = args.input
+
     executors_logs = read_executors_logs(args.input)
-
+    execution_summary["input"]["total_logs"] = len(executors_logs)
     time_range = parse_time_range(args.range)
-    filtered_logs = filter_logs_by_time(executors_logs, time_range[0], time_range[1])
 
-    print("- Filter by time range: " + format_time_range(time_range) + " (" + str(len(filtered_logs)) + "/" + str(len(executors_logs)) + " logs)")
-    # Print the actual earliest and latest timestamps in local timezone of the filtered logs
-    if len(filtered_logs) > 0:
-        print("  - Earliest: " + datetime.datetime.fromtimestamp(int(filtered_logs[0]["Time"]) / 1000).strftime("%Y-%m-%d %H:%M:%S"))
-        print("  - Latest: " + datetime.datetime.fromtimestamp(int(filtered_logs[-1]["Time"]) / 1000).strftime("%Y-%m-%d %H:%M:%S"))
+    logs_after_filter_by_time = filter_logs_by_time(executors_logs, time_range[0], time_range[1])
+    execution_summary["input"]["time_range"] = time_range
+    execution_summary["input"]["logs_after_filter_by_time"] = len(logs_after_filter_by_time)
 
-    logsToAnalyze = filter_logs_by_tags(filtered_logs, args.tags.split(",") if args.tags is not None else None)
-    print("- Filter by tags: " + str(args.tags) + " (" + str(len(logsToAnalyze)) + "/" + str(len(executors_logs)) + " logs)")
+    logsToAnalyze = filter_logs_by_tags(logs_after_filter_by_time, args.tags.split(",") if args.tags is not None else None)
+    execution_summary["input"]["tags"] = args.tags
+    execution_summary["input"]["logs_to_analyze"] = len(logsToAnalyze)
 
-    analysis_result = analyze_by_parent(logsToAnalyze)
-    totalDuration = calculate_duration(logsToAnalyze, None)
-    totalCost = calculate_cost(logsToAnalyze, None)
+    # If logsToAnalyze is not empty, then set the timestamps of the first and the last log to the execution_summary["result"]
+    if len(logsToAnalyze) > 0:
+        execution_summary["result"] = {}
+        execution_summary["result"]["earliest_log_time"] = int(logsToAnalyze[0]["Time"])
+        execution_summary["result"]["latest_log_time"] = int(logsToAnalyze[-1]["Time"])
+        execution_summary["result"]["totalDuration"] = calculate_duration(logsToAnalyze, None)
+        execution_summary["result"]["totalCost"] = calculate_cost(logsToAnalyze, None)
+        execution_summary["result"]["analysis_result_by_parent"] = analyze_by_parent(logsToAnalyze)
+        execution_summary["result"]["analysis_result_by_cost_tag"] = analyze_by_cost_tag(logsToAnalyze)
     
-    print("\r\n")
-
-    print("## Total Duration: " + format_duration(totalDuration) + "\r\n")
-    # print the sorted parent names by duration, each name starts with a new row, the parent name is the key, the total duration is the value
-    for parent_name in analysis_result["by_duration"]["sorted_names"]:
-        print("- " + parent_name + ": " 
-              + format_duration(analysis_result["by_duration"]["parents"][parent_name]) + " (" + str(analysis_result["by_build_times"]["parents"][parent_name]) + " builds)")
-
-    print("\r\n")
-    print("## Total Cost: " + format_cost(totalCost) + "\r\n")
-    # print the sorted parent names by cost, each name starts with a new row, the parent name is the key, the total cost is the value
-    for parent_name in analysis_result["by_cost"]["sorted_names"]:
-        # print the parent name and the total cost of the parent, if it costs > 0 USD
-        if analysis_result["by_cost"]["parents"][parent_name] > 1:
-            print("- " + parent_name + ": " + format_cost(analysis_result["by_cost"]["parents"][parent_name]) + " (" + str(analysis_result["by_build_times"]["parents"][parent_name]) + " builds)")
-
+    output_execution_summary(execution_summary)
